@@ -181,6 +181,8 @@ git commit -m "feat(cards): add invoice payment flows"
 
 **Step 1: Write failing progressive-form tests**
 
+No new rendering dependency is required for the visual card; implement it with semantic HTML and CSS Modules so bank-inspired styling remains fully controlled by Orbe.
+
 When payment method becomes credit card, assert card selector and installment count appear, account selector disappears, installment preview appears before save, and invalid purchase above available limit requires explicit confirmation. Other payment methods must hide all card fields.
 
 **Step 2: Write failing visual-card tests**
@@ -285,6 +287,12 @@ git commit -m "feat(finance): add optional monthly budgets"
 - Create: `apps/desktop/src/features/reports/export.test.ts`
 
 **Step 1: Write failing report tests**
+
+Install report rendering/export dependencies:
+
+```powershell
+npm install recharts pdf-lib --workspace @orbe/desktop
+```
 
 Cover monthly summary, income versus expense, category/subcategory, evolution, account flow/balance, card purchase/installment/invoice, and budget versus actual. Filters cover period, account, card, category, subcategory, and state. Assert invoice payments never enter expense totals and external payments never enter income.
 
