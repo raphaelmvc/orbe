@@ -1,5 +1,6 @@
 import { v4 as uuid } from 'uuid';
 
+import { createTauriLocalFinanceStore } from '../infrastructure/tauri-local-finance-store';
 import type { Clock, IdGenerator, LocalFinanceStore } from './ports';
 
 export interface AppDependencies {
@@ -12,9 +13,7 @@ const localFinanceStore: LocalFinanceStore = {
   async listAccounts() {
     return [];
   },
-  async applyMutation() {
-    throw new Error('Local finance persistence is not configured yet');
-  },
+  ...createTauriLocalFinanceStore(),
 };
 
 export const appDependencies: AppDependencies = {
