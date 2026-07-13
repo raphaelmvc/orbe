@@ -1,0 +1,35 @@
+name: Hydrate Zod dependency
+
+on:
+  push:
+    branches:
+      - feature/foundation-domain
+
+jobs:
+  dependency:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: feature/foundation-domain
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Zod for contracts
+        run: npm install zod --workspace @orbe/contracts
+      - name: Stage dependency bundle
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path dependency-bundle/node_modules -Force | Out-Null
+          Copy-Item package-lock.json dependency-bundle/package-lock.json
+          New-Item -ItemType Directory -Path dependency-bundle/packages/contracts -Force | Out-Null
+          Copy-Item packages/contracts/package.json dependency-bundle/packages/contracts/package.json
+          Copy-Item node_modules/zod dependency-bundle/node_modules/zod -Recurse
+      - name: Upload dependency bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: zod-dependency-bundle
+          path: dependency-bundle
+          if-no-files-found: error
