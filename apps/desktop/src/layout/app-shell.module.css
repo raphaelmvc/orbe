@@ -1,0 +1,376 @@
+.shell {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  min-height: 100%;
+}
+
+.skipLink {
+  position: absolute;
+  top: -3rem;
+  left: 0.75rem;
+  z-index: 100;
+  padding: 0.6rem 1rem;
+  border-radius: 999px;
+  background: var(--color-surface-elevated);
+  color: var(--color-text);
+  box-shadow: var(--shadow-elevated);
+  transition: top 140ms ease;
+}
+
+.skipLink:focus-visible {
+  top: 0.75rem;
+}
+
+.visuallyHidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Sidebar */
+
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  width: 17rem;
+  padding: 1.25rem 1rem;
+  border-right: 1px solid var(--color-border);
+  background: var(--color-surface);
+  transition: width 160ms ease;
+}
+
+.sidebarCollapsed {
+  width: 5rem;
+  align-items: center;
+}
+
+.sidebarHeader {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.sidebarCollapsed .sidebarHeader {
+  flex-direction: column;
+}
+
+.brandMark {
+  width: 1.1rem;
+  aspect-ratio: 1;
+  flex-shrink: 0;
+  border: 0.22rem solid var(--color-accent);
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 0.13rem var(--color-surface);
+}
+
+.brandName {
+  flex: 1;
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+}
+
+.collapseToggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border: 1px solid var(--color-border);
+  border-radius: 50%;
+  color: var(--color-text-muted);
+  background: transparent;
+  cursor: pointer;
+}
+
+.collapseToggle:hover {
+  border-color: var(--color-accent);
+  color: var(--color-text);
+}
+
+.addButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.7rem 1rem;
+  border: none;
+  border-radius: 999px;
+  color: #ffffff;
+  background: var(--color-accent);
+  box-shadow: var(--shadow-control);
+  font: inherit;
+  font-weight: 650;
+  cursor: pointer;
+  transition: transform 140ms ease;
+}
+
+.addButton:hover {
+  transform: translateY(-1px);
+}
+
+.sidebarCollapsed .addButton {
+  width: 2.75rem;
+  padding: 0.7rem;
+}
+
+.navGroups {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  flex: 1;
+  overflow-y: auto;
+}
+
+.navGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.navGroupLabel {
+  margin: 0 0 0.15rem 0.75rem;
+  color: var(--color-text-muted);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.sidebarCollapsed .navGroupLabel {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.navList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.navLink {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.55rem 0.75rem;
+  border-radius: 0.75rem;
+  color: var(--color-text-muted);
+  text-decoration: none;
+  font-weight: 550;
+}
+
+.sidebarCollapsed .navLink {
+  justify-content: center;
+  padding: 0.55rem;
+}
+
+.navLink:hover {
+  color: var(--color-text);
+  background: var(--color-accent-soft);
+}
+
+.navLinkActive {
+  color: var(--color-accent);
+  background: var(--color-accent-soft);
+}
+
+.navLabel {
+  white-space: nowrap;
+}
+
+.sidebarCollapsed .navLabel {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Sidebar footer / user menu trigger */
+
+.sidebarFooter {
+  border-top: 1px solid var(--color-border);
+  padding-top: 1rem;
+}
+
+.footerTrigger {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  width: 100%;
+  padding: 0.5rem;
+  border: none;
+  border-radius: 0.75rem;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+}
+
+.footerTrigger:hover {
+  background: var(--color-accent-soft);
+}
+
+.avatar {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 2.1rem;
+  height: 2.1rem;
+  border-radius: 50%;
+  color: #ffffff;
+  background: var(--color-accent);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.footerText {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  gap: 0.1rem;
+}
+
+.userName {
+  overflow: hidden;
+  color: var(--color-text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 650;
+}
+
+.syncState {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
+}
+
+.expandIcon {
+  flex-shrink: 0;
+  color: var(--color-text-muted);
+}
+
+/* Floating surface shared by the user menu content and collapsed-sidebar tooltips (Radix portals) */
+
+.popoverSurface {
+  min-width: 14rem;
+  padding: 0.5rem;
+  border: 1px solid var(--color-border);
+  border-radius: 0.85rem;
+  background: var(--color-surface-elevated);
+  box-shadow: var(--shadow-elevated);
+}
+
+.tooltipSurface {
+  composes: popoverSurface;
+  min-width: 0;
+  padding: 0.4rem 0.7rem;
+  color: var(--color-text);
+  font-size: 0.8rem;
+}
+
+.userMenuSummary {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  padding: 0.4rem 0.6rem 0.6rem;
+}
+
+.userMenuUsername {
+  color: var(--color-text);
+  font-weight: 650;
+}
+
+.userMenuEmail {
+  color: var(--color-text-muted);
+  font-size: 0.8rem;
+}
+
+.userMenuSeparator {
+  height: 1px;
+  margin: 0.35rem 0;
+  background: var(--color-border);
+}
+
+.userMenuItem {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.55rem 0.6rem;
+  border-radius: 0.6rem;
+  color: var(--color-text);
+  font-size: 0.9rem;
+  cursor: pointer;
+  outline: none;
+}
+
+.userMenuItem[data-highlighted] {
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
+}
+
+/* Content column / top bar */
+
+.contentColumn {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  min-width: 0;
+}
+
+.topBar {
+  display: flex;
+  align-items: center;
+  padding: 1.1rem clamp(1.25rem, 4vw, 3rem);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.topBarLabel {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+}
+
+.main {
+  min-width: 0;
+  padding: clamp(1.25rem, 4vw, 3rem);
+}
+
+.main:focus-visible {
+  outline: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sidebar,
+  .addButton,
+  .skipLink {
+    transition: none;
+  }
+}
