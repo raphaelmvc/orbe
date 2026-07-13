@@ -35,6 +35,12 @@
 
 **Step 1: Write failing navigation tests**
 
+Install the desktop application dependencies before creating the test:
+
+```powershell
+npm install react-router-dom @tanstack/react-query react-hook-form @hookform/resolvers zod lucide-react @radix-ui/react-dialog @radix-ui/react-dropdown-menu @radix-ui/react-tooltip --workspace @orbe/desktop
+```
+
 Render at desktop width and assert:
 
 - brand `Orbe` and highlighted `Adicionar` control;
@@ -332,6 +338,11 @@ git commit -m "feat(desktop): add trash preferences and themes"
 - Create: `docs/testing/desktop-offline-fixture.md`
 
 **Step 1: Add deterministic Playwright fixtures**
+
+```powershell
+npm install --save-dev @playwright/test @axe-core/playwright --workspace @orbe/desktop
+npx playwright install chromium
+```
 
 Launch the frontend against a test local-store adapter seeded per test. Do not share a database across tests. Freeze dates and timezone at `America/Sao_Paulo`.
 
