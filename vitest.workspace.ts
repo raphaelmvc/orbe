@@ -1,18 +1,3 @@
-import { defineWorkspace } from 'vitest/config';
+export const workspaceProjects = ['./packages/domain', './packages/contracts'];
 
-export default defineWorkspace([
-  {
-    test: {
-      name: 'domain',
-      passWithNoTests: true,
-      root: './packages/domain',
-    },
-  },
-  {
-    test: {
-      name: 'contracts',
-      passWithNoTests: true,
-      root: './packages/contracts',
-    },
-  },
-]);
+export const passWithNoTests = true;
