@@ -16,4 +16,19 @@ export default tseslint.config(
     },
   },
   ...tseslint.configs.recommended,
+  {
+    files: ['packages/domain/src/**/*.ts'],
+    rules: {
+      'no-restricted-globals': [
+        'error',
+        'window',
+        'document',
+        'navigator',
+        'location',
+        'localStorage',
+        'sessionStorage',
+        'indexedDB',
+      ],
+    },
+  },
 );
