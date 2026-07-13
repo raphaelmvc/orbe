@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - feature/foundation-domain
+  pull_request:
+    branches:
+      - main
 
 permissions:
   contents: write
@@ -31,7 +34,14 @@ jobs:
           npm test
           npm run build
           npm run boundaries
-      - name: Commit reproducible lockfile
+      - name: Upload lockfile
+        uses: actions/upload-artifact@v4
+        with:
+          name: npm-lock
+          path: package-lock.json
+          if-no-files-found: error
+      - name: Commit reproducible lockfile after push run
+        if: github.event_name == 'push'
         shell: bash
         run: |
           rm .github/workflows/bootstrap-lock.yml
