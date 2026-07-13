@@ -6,7 +6,7 @@ module.exports = {
       name: 'domain-purity',
       severity: 'error',
       comment:
-        'The domain must not depend on apps, contracts, UI/runtime frameworks, databases, or browser globals.',
+        'The domain must not depend on apps, contracts, UI/runtime frameworks, or databases.',
       from: {
         path: domainSource,
       },
@@ -14,8 +14,7 @@ module.exports = {
         path: [
           '^apps/',
           '^packages/contracts/',
-          '(^|/)node_modules/(?:react(?:-dom)?|@tauri-apps/|@prisma/|prisma(?:/|$)|mysql2?(?:/|$)|sqlite3?(?:/|$)|better-sqlite3(?:/|$)|@libsql/)',
-          '^(?:window|document|navigator|location|localStorage|sessionStorage|indexedDB)$',
+          '(^|/)node_modules/(?:react(?:-dom)?|@tauri-apps/|fastify(?:/|$)|express(?:/|$)|@prisma/|prisma(?:/|$)|mysql2?(?:/|$)|sqlite3?(?:/|$)|better-sqlite3(?:/|$)|@libsql/)',
         ].join('|'),
       },
     },
