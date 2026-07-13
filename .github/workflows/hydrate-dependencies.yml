@@ -1,0 +1,31 @@
+name: Hydrate Windows dependencies
+
+on:
+  push:
+    branches:
+      - feature/foundation-domain
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  dependencies:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: feature/foundation-domain
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Upload Windows node_modules
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-node-modules
+          path: node_modules
+          include-hidden-files: true
+          if-no-files-found: error
