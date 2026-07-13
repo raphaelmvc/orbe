@@ -26,6 +26,12 @@ jobs:
           node-version: '22'
       - name: Install declared development tools
         run: npm install --save-dev typescript vitest eslint @eslint/js typescript-eslint dependency-cruiser fast-check
+      - name: Upload lockfile
+        uses: actions/upload-artifact@v4
+        with:
+          name: npm-lock
+          path: package-lock.json
+          if-no-files-found: error
       - name: Validate generated workspace
         run: |
           npm ls --depth=0
@@ -34,12 +40,6 @@ jobs:
           npm test
           npm run build
           npm run boundaries
-      - name: Upload lockfile
-        uses: actions/upload-artifact@v4
-        with:
-          name: npm-lock
-          path: package-lock.json
-          if-no-files-found: error
       - name: Commit reproducible lockfile after push run
         if: github.event_name == 'push'
         shell: bash
