@@ -1,0 +1,12 @@
+node_modules/
+dist/
+target/
+.env
+.env.*
+!.env.example
+.worktrees
+.superpowers/
+coverage/
+playwright-report/
+test-results/
+*.log
