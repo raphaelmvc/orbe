@@ -1,5 +1,5 @@
 use rusqlite::{params, Connection, OptionalExtension, TransactionBehavior};
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
 use thiserror::Error;
 use uuid::{Uuid, Variant};
@@ -15,45 +15,9 @@ pub struct LocalMutationCommand {
     entity_id: String,
     base_version: u64,
     payload: EntityPayload,
-    deleted_at: RequiredNullable<String>,
+    #[serde(deserialize_with = "deserialize_required_nullable")]
+    deleted_at: Option<String>,
     occurred_at: String,
-}
-
-#[derive(Debug, Clone)]
-pub struct RequiredNullable<T>(Option<T>);
-
-impl<T> RequiredNullable<T> {
-    fn as_ref(&self) -> Option<&T> {
-        self.0.as_ref()
-    }
-
-    fn as_mut(&mut self) -> Option<&mut T> {
-        self.0.as_mut()
-    }
-}
-
-impl<'de, T> Deserialize<'de> for RequiredNullable<T>
-where
-    T: Deserialize<'de>,
-{
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        Option::<T>::deserialize(deserializer).map(Self)
-    }
-}
-
-impl<T> Serialize for RequiredNullable<T>
-where
-    T: Serialize,
-{
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        self.0.serialize(serializer)
-    }
 }
 
 fn deserialize_optional_non_null<'de, D, T>(deserializer: D) -> Result<Option<T>, D::Error>
@@ -62,6 +26,14 @@ where
     T: Deserialize<'de>,
 {
     T::deserialize(deserializer).map(Some)
+}
+
+fn deserialize_required_nullable<'de, D, T>(deserializer: D) -> Result<Option<T>, D::Error>
+where
+    D: Deserializer<'de>,
+    T: Deserialize<'de>,
+{
+    Option::<T>::deserialize(deserializer)
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -89,8 +61,11 @@ pub enum EntityPayload {
     Category {
         name: String,
         kind: TransactionKind,
-        #[serde(rename = "parentId")]
-        parent_id: RequiredNullable<String>,
+        #[serde(
+            rename = "parentId",
+            deserialize_with = "deserialize_required_nullable"
+        )]
+        parent_id: Option<String>,
         status: CategoryStatus,
         #[serde(rename = "displayOrder")]
         display_order: u64,
@@ -202,7 +177,7 @@ impl EntityPayload {
                 name, parent_id, ..
             } => {
                 require_name(name)?;
-                if let Some(parent_id) = parent_id.as_mut() {
+                if let Some(parent_id) = parent_id {
                     *parent_id = canonical_uuid(parent_id)?;
                 }
             }
@@ -563,7 +538,7 @@ mod tests {
 
     use super::{
         apply_local_mutation_in_connection, validate_command, EntityPayload, LocalFinanceError,
-        LocalMutationCommand, RequiredNullable,
+        LocalMutationCommand,
     };
 
     const ENTITY_ID: &str = "00000000-0000-4000-8000-000000000004";
@@ -602,7 +577,7 @@ mod tests {
                 "displayOrder": 0
             }))
             .expect("valid account payload"),
-            deleted_at: RequiredNullable(None),
+            deleted_at: None,
             occurred_at: OCCURRED_AT.to_owned(),
         }
     }
