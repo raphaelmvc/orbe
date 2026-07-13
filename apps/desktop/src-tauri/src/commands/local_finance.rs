@@ -416,6 +416,7 @@ fn canonical_uuid(value: &str) -> Result<String, LocalFinanceError> {
     }
     let uuid = Uuid::parse_str(value).map_err(|_| LocalFinanceError::InvalidCommand)?;
     if !uuid.is_nil()
+        && !uuid.is_max()
         && (!(1..=8).contains(&uuid.get_version_num()) || uuid.get_variant() != Variant::RFC4122)
     {
         return Err(LocalFinanceError::InvalidCommand);
@@ -806,12 +807,15 @@ mod tests {
         for entity_id in [
             "00000000-0000-0000-0000-000000000000",
             "AAAAAAAA-AAAA-4AAA-8AAA-AAAAAAAAAAAA",
+            "ffffffff-ffff-ffff-ffff-ffffffffffff",
+            "FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF",
         ] {
             let mut value = account_without_institution_command_json();
             value["entityId"] = json!(entity_id);
             let mut command: LocalMutationCommand =
                 serde_json::from_value(value).expect("UUID command shape");
             assert_eq!(validate_command(&mut command), Ok(()), "{entity_id}");
+            assert_eq!(command.entity_id, entity_id.to_ascii_lowercase());
         }
     }
 
