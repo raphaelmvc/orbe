@@ -18,7 +18,12 @@ jobs:
         with:
           node-version: '22'
       - name: Generate Tauri app
-        run: npm create tauri-app@latest apps/desktop -- --template react-ts --manager npm --identifier app.orbe.desktop
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path apps -Force | Out-Null
+          Push-Location apps
+          npm create tauri-app@latest desktop -- --template react-ts --manager npm --identifier app.orbe.desktop
+          Pop-Location
       - name: Configure workspace package
         shell: pwsh
         run: |
