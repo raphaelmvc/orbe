@@ -76,7 +76,17 @@ Create `packages/contracts/src/index.ts`:
 export const syncProtocolVersion = 1 as const;
 ```
 
-Configure each package with `composite`, `declaration`, `rootDir: "src"`, and `outDir: "dist"` extending `tsconfig.base.json`.
+Configure each package with `composite`, `declaration`, `rootDir: "src"`, and `outDir: "dist"` extending `tsconfig.base.json`. Both package manifests use `"type": "module"`, `"private": true`, and these scripts:
+
+```json
+{
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  }
+}
+```
 
 **Step 3: Enforce dependency direction**
 
@@ -330,10 +340,11 @@ Expected: tests and type checking pass.
 ```powershell
 npm create tauri-app@latest apps/desktop -- --template react-ts --manager npm --identifier app.orbe.desktop --tauri-version 2
 npm install
+npm install uuid --workspace @orbe/desktop
 npm install --save-dev @testing-library/react @testing-library/jest-dom @testing-library/user-event jsdom --workspace @orbe/desktop
 ```
 
-If the generator proposes root workspace changes, decline them and add the desktop scripts manually.
+If the generator proposes root workspace changes, decline them. Rename the generated package to `@orbe/desktop`, mark it private, and define `test`, `test:e2e`, `typecheck`, `build`, `tauri`, and `tauri:build` scripts explicitly.
 
 **Step 2: Write a failing shell test**
 
@@ -400,7 +411,18 @@ git commit -m "feat(desktop): add Tauri composition shell"
 
 **Step 1: Add Rust dependencies and failing migration tests**
 
-Use `rusqlite` with the SQLCipher bundled feature, `keyring`, `secrecy`, `uuid` with v7, `serde`, `serde_json`, `thiserror`, and `tempfile` for tests. A Rust test must:
+Install the persistence dependencies:
+
+```powershell
+Push-Location apps/desktop/src-tauri
+cargo add rusqlite --features bundled-sqlcipher-vendored-openssl
+cargo add keyring secrecy serde serde_json thiserror rand hex
+cargo add uuid --features v7,serde
+cargo add tempfile --dev
+Pop-Location
+```
+
+A Rust test must:
 
 1. create a temporary encrypted database;
 2. assert `PRAGMA cipher_version` is non-empty;
