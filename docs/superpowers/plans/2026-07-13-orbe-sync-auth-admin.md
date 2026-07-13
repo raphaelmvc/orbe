@@ -41,8 +41,11 @@
 
 ```powershell
 npm install fastify @fastify/cors @fastify/helmet @fastify/rate-limit @prisma/client zod pino --workspace @orbe/api
-npm install --save-dev prisma tsx testcontainers --workspace @orbe/api
+npm install argon2 jose nodemailer @fastify/oauth2 --workspace @orbe/api
+npm install --save-dev prisma tsx testcontainers @types/nodemailer --workspace @orbe/api
 ```
+
+Set the API package name to `@orbe/api`, `type` to `module`, and add scripts `dev`, `build`, `start`, `test`, `test:integration`, `typecheck`, `prisma:validate`, and `prisma:migrate` before running workspace-scoped commands.
 
 **Step 2: Write failing configuration tests**
 
