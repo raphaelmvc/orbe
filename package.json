@@ -1,0 +1,26 @@
+{
+  "name": "orbe",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces --if-present",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "boundaries": "depcruise --config dependency-cruiser.cjs packages apps"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "dependency-cruiser": "^18.1.0",
+    "eslint": "^10.7.0",
+    "fast-check": "^4.9.0",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.63.0",
+    "vitest": "^4.1.10"
+  }
+}
