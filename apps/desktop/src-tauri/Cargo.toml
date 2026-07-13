@@ -29,6 +29,7 @@ secrecy = "0.10"
 thiserror = "2"
 rand = "0.8.6"
 hex = "0.4"
+zeroize = "1.9.0"
 
 [dev-dependencies]
 tempfile = "3.27.0"

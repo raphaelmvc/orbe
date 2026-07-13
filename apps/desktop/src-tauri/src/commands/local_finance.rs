@@ -2,7 +2,7 @@ use rusqlite::{params, Connection, OptionalExtension, TransactionBehavior};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::Value;
 use thiserror::Error;
-use uuid::Uuid;
+use uuid::{Uuid, Variant};
 
 use crate::database::DatabaseState;
 
@@ -25,6 +25,10 @@ pub struct RequiredNullable<T>(Option<T>);
 impl<T> RequiredNullable<T> {
     fn as_ref(&self) -> Option<&T> {
         self.0.as_ref()
+    }
+
+    fn as_mut(&mut self) -> Option<&mut T> {
+        self.0.as_mut()
     }
 }
 
@@ -174,7 +178,7 @@ impl EntityPayload {
         }
     }
 
-    fn validate(&self) -> Result<(), LocalFinanceError> {
+    fn validate(&mut self) -> Result<(), LocalFinanceError> {
         match self {
             Self::Account {
                 name,
@@ -198,8 +202,8 @@ impl EntityPayload {
                 name, parent_id, ..
             } => {
                 require_name(name)?;
-                if parent_id.as_ref().is_some_and(|value| !valid_uuid(value)) {
-                    return Err(LocalFinanceError::InvalidCommand);
+                if let Some(parent_id) = parent_id.as_mut() {
+                    *parent_id = canonical_uuid(parent_id)?;
                 }
             }
             Self::Transaction {
@@ -213,12 +217,14 @@ impl EntityPayload {
             } => {
                 require_description(description)?;
                 if *value <= 0
-                    || !valid_uuid(category_id)
-                    || account_id.as_ref().is_some_and(|value| !valid_uuid(value))
                     || !valid_calendar_date(due_date)
                     || (*state == TransactionState::Settled && account_id.is_none())
                 {
                     return Err(LocalFinanceError::InvalidCommand);
+                }
+                *category_id = canonical_uuid(category_id)?;
+                if let Some(account_id) = account_id {
+                    *account_id = canonical_uuid(account_id)?;
                 }
             }
             Self::Transfer {
@@ -229,11 +235,12 @@ impl EntityPayload {
                 date,
             } => {
                 require_description(description)?;
-                let source = Uuid::parse_str(source_account_id)
-                    .map_err(|_| LocalFinanceError::InvalidCommand)?;
-                let destination = Uuid::parse_str(destination_account_id)
-                    .map_err(|_| LocalFinanceError::InvalidCommand)?;
-                if source == destination || *value <= 0 || !valid_calendar_date(date) {
+                *source_account_id = canonical_uuid(source_account_id)?;
+                *destination_account_id = canonical_uuid(destination_account_id)?;
+                if source_account_id == destination_account_id
+                    || *value <= 0
+                    || !valid_calendar_date(date)
+                {
                     return Err(LocalFinanceError::InvalidCommand);
                 }
             }
@@ -404,13 +411,25 @@ fn validate_command(command: &mut LocalMutationCommand) -> Result<(), LocalFinan
 }
 
 fn canonical_uuid(value: &str) -> Result<String, LocalFinanceError> {
-    Uuid::parse_str(value)
-        .map(|uuid| uuid.to_string())
-        .map_err(|_| LocalFinanceError::InvalidCommand)
+    if !strict_uuid_shape(value) {
+        return Err(LocalFinanceError::InvalidCommand);
+    }
+    let uuid = Uuid::parse_str(value).map_err(|_| LocalFinanceError::InvalidCommand)?;
+    if !uuid.is_nil()
+        && (!(1..=8).contains(&uuid.get_version_num()) || uuid.get_variant() != Variant::RFC4122)
+    {
+        return Err(LocalFinanceError::InvalidCommand);
+    }
+    Ok(uuid.to_string())
 }
 
-fn valid_uuid(value: &str) -> bool {
-    Uuid::parse_str(value).is_ok()
+fn strict_uuid_shape(value: &str) -> bool {
+    value.is_ascii()
+        && value.len() == 36
+        && value.bytes().enumerate().all(|(index, byte)| match index {
+            8 | 13 | 18 | 23 => byte == b'-',
+            _ => byte.is_ascii_hexdigit(),
+        })
 }
 
 fn valid_required_text(value: &str, max_chars: usize) -> bool {
@@ -468,11 +487,10 @@ fn valid_calendar_date(value: &str) -> bool {
 
 fn valid_timestamp(value: &str) -> bool {
     if !value.is_ascii()
-        || value.len() < 20
+        || value.len() < 17
         || !valid_calendar_date(&value[..10])
         || value.as_bytes().get(10) != Some(&b'T')
         || value.as_bytes().get(13) != Some(&b':')
-        || value.as_bytes().get(16) != Some(&b':')
     {
         return false;
     }
@@ -483,26 +501,32 @@ fn valid_timestamp(value: &str) -> bool {
     let Some(minute) = parse_two_digits(value, 14) else {
         return false;
     };
-    let Some(second) = parse_two_digits(value, 17) else {
-        return false;
-    };
-    if hour > 23 || minute > 59 || second > 59 {
+    if hour > 23 || minute > 59 {
         return false;
     }
 
-    let mut zone_index = 19;
-    if value.as_bytes().get(zone_index) == Some(&b'.') {
-        zone_index += 1;
-        let fraction_start = zone_index;
-        while value
-            .as_bytes()
-            .get(zone_index)
-            .is_some_and(u8::is_ascii_digit)
-        {
-            zone_index += 1;
-        }
-        if zone_index == fraction_start {
+    let mut zone_index = 16;
+    if value.as_bytes().get(zone_index) == Some(&b':') {
+        let Some(second) = parse_two_digits(value, 17) else {
             return false;
+        };
+        if second > 59 {
+            return false;
+        }
+        zone_index = 19;
+        if value.as_bytes().get(zone_index) == Some(&b'.') {
+            zone_index += 1;
+            let fraction_start = zone_index;
+            while value
+                .as_bytes()
+                .get(zone_index)
+                .is_some_and(u8::is_ascii_digit)
+            {
+                zone_index += 1;
+            }
+            if zone_index == fraction_start {
+                return false;
+            }
         }
     }
 
@@ -537,8 +561,8 @@ mod tests {
     use crate::database::EncryptedDatabase;
 
     use super::{
-        apply_local_mutation_in_connection, EntityPayload, LocalFinanceError, LocalMutationCommand,
-        RequiredNullable,
+        apply_local_mutation_in_connection, validate_command, EntityPayload, LocalFinanceError,
+        LocalMutationCommand, RequiredNullable,
     };
 
     const ENTITY_ID: &str = "00000000-0000-4000-8000-000000000004";
@@ -722,7 +746,7 @@ mod tests {
         apply_local_mutation_in_connection(&mut connection, account, || Ok(()))
             .expect("account mutation");
 
-        let category = serde_json::from_value(raw_command(json!({
+        let category: LocalMutationCommand = serde_json::from_value(raw_command(json!({
             "entityType": "category",
             "name": "Alimentação",
             "kind": "expense",
@@ -738,7 +762,7 @@ mod tests {
         apply_local_mutation_in_connection(&mut connection, category, || Ok(()))
             .expect("category mutation");
 
-        let transaction = serde_json::from_value(raw_command(json!({
+        let transaction: LocalMutationCommand = serde_json::from_value(raw_command(json!({
             "entityType": "transaction",
             "kind": "expense",
             "description": "Compra pendente",
@@ -763,6 +787,189 @@ mod tests {
         let transaction_payload =
             persisted_payload(&connection, "00000000-0000-4000-8000-00000000000b");
         assert!(transaction_payload.get("accountId").is_none());
+    }
+
+    #[test]
+    fn accepts_the_same_optional_seconds_and_strict_uuid_forms_as_zod() {
+        for occurred_at in [
+            "2026-07-13T12:00Z",
+            "2026-07-13T12:00+03:00",
+            "2026-07-13T12:00:59.123Z",
+        ] {
+            let mut value = account_without_institution_command_json();
+            value["occurredAt"] = json!(occurred_at);
+            let mut command: LocalMutationCommand =
+                serde_json::from_value(value).expect("timestamp command shape");
+            assert_eq!(validate_command(&mut command), Ok(()), "{occurred_at}");
+        }
+
+        for entity_id in [
+            "00000000-0000-0000-0000-000000000000",
+            "AAAAAAAA-AAAA-4AAA-8AAA-AAAAAAAAAAAA",
+        ] {
+            let mut value = account_without_institution_command_json();
+            value["entityId"] = json!(entity_id);
+            let mut command: LocalMutationCommand =
+                serde_json::from_value(value).expect("UUID command shape");
+            assert_eq!(validate_command(&mut command), Ok(()), "{entity_id}");
+        }
+    }
+
+    #[test]
+    fn rejects_malformed_optional_seconds_and_datetime_ranges() {
+        for occurred_at in [
+            "2026-07-13T12:00",
+            "2026-07-13T12:60Z",
+            "2026-07-13T12:00:60Z",
+            "2026-07-13T12:00:.123Z",
+        ] {
+            let mut value = account_without_institution_command_json();
+            value["occurredAt"] = json!(occurred_at);
+            let mut command: LocalMutationCommand =
+                serde_json::from_value(value).expect("timestamp command shape");
+            assert_eq!(
+                validate_command(&mut command),
+                Err(LocalFinanceError::InvalidCommand),
+                "{occurred_at}"
+            );
+        }
+    }
+
+    #[test]
+    fn rejects_non_zod_uuid_encodings_versions_variants_and_nested_ids() {
+        for entity_id in [
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "urn:uuid:aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+            "{aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa}",
+            "aaaaaaaa-aaaa-0aaa-8aaa-aaaaaaaaaaaa",
+            "aaaaaaaa-aaaa-9aaa-8aaa-aaaaaaaaaaaa",
+            "aaaaaaaa-aaaa-4aaa-7aaa-aaaaaaaaaaaa",
+        ] {
+            let mut value = account_without_institution_command_json();
+            value["entityId"] = json!(entity_id);
+            let mut command: LocalMutationCommand =
+                serde_json::from_value(value).expect("UUID command shape");
+            assert_eq!(
+                validate_command(&mut command),
+                Err(LocalFinanceError::InvalidCommand),
+                "{entity_id}"
+            );
+        }
+
+        let invalid_nested_id = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+        for payload in [
+            json!({
+                "entityType": "category",
+                "name": "Mercado",
+                "kind": "expense",
+                "parentId": invalid_nested_id,
+                "status": "active",
+                "displayOrder": 0
+            }),
+            json!({
+                "entityType": "transaction",
+                "kind": "expense",
+                "description": "Compra",
+                "value": 500,
+                "categoryId": invalid_nested_id,
+                "accountId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+                "dueDate": "2026-07-13",
+                "state": "settled"
+            }),
+            json!({
+                "entityType": "transaction",
+                "kind": "expense",
+                "description": "Compra",
+                "value": 500,
+                "categoryId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+                "accountId": invalid_nested_id,
+                "dueDate": "2026-07-13",
+                "state": "settled"
+            }),
+            json!({
+                "entityType": "transfer",
+                "sourceAccountId": invalid_nested_id,
+                "destinationAccountId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+                "description": "Transferência",
+                "value": 500,
+                "date": "2026-07-13"
+            }),
+            json!({
+                "entityType": "transfer",
+                "sourceAccountId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+                "destinationAccountId": invalid_nested_id,
+                "description": "Transferência",
+                "value": 500,
+                "date": "2026-07-13"
+            }),
+        ] {
+            let mut command: LocalMutationCommand =
+                serde_json::from_value(raw_command(payload)).expect("nested UUID command shape");
+            assert_eq!(
+                validate_command(&mut command),
+                Err(LocalFinanceError::InvalidCommand)
+            );
+        }
+    }
+
+    #[test]
+    fn accepts_and_canonicalizes_uppercase_uuid_values_in_every_nested_position() {
+        let cases = [
+            (
+                json!({
+                    "entityType": "category",
+                    "name": "Mercado",
+                    "kind": "expense",
+                    "parentId": "AAAAAAAA-AAAA-4AAA-8AAA-AAAAAAAAAAAA",
+                    "status": "active",
+                    "displayOrder": 0
+                }),
+                vec![("parentId", "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa")],
+            ),
+            (
+                json!({
+                    "entityType": "transaction",
+                    "kind": "expense",
+                    "description": "Compra",
+                    "value": 500,
+                    "categoryId": "AAAAAAAA-AAAA-4AAA-8AAA-AAAAAAAAAAAA",
+                    "accountId": "BBBBBBBB-BBBB-4BBB-8BBB-BBBBBBBBBBBB",
+                    "dueDate": "2026-07-13",
+                    "state": "settled"
+                }),
+                vec![
+                    ("categoryId", "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"),
+                    ("accountId", "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"),
+                ],
+            ),
+            (
+                json!({
+                    "entityType": "transfer",
+                    "sourceAccountId": "AAAAAAAA-AAAA-4AAA-8AAA-AAAAAAAAAAAA",
+                    "destinationAccountId": "BBBBBBBB-BBBB-4BBB-8BBB-BBBBBBBBBBBB",
+                    "description": "Transferência",
+                    "value": 500,
+                    "date": "2026-07-13"
+                }),
+                vec![
+                    ("sourceAccountId", "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"),
+                    (
+                        "destinationAccountId",
+                        "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+                    ),
+                ],
+            ),
+        ];
+
+        for (payload, expected_ids) in cases {
+            let mut command: LocalMutationCommand =
+                serde_json::from_value(raw_command(payload)).expect("nested UUID command shape");
+            assert_eq!(validate_command(&mut command), Ok(()));
+            let canonical_payload = serde_json::to_value(&command.payload).expect("payload JSON");
+            for (field, expected) in expected_ids {
+                assert_eq!(canonical_payload[field], expected);
+            }
+        }
     }
 
     fn account_without_institution_command_json() -> Value {

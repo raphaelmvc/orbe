@@ -14,7 +14,10 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .setup(|app| {
             let application_data = app.path().app_data_dir()?;
-            let key = load_or_create(&WindowsCredentialStore)?;
+            let key = load_or_create(
+                &WindowsCredentialStore,
+                &application_data.join("database-key.lock"),
+            )?;
             let database = EncryptedDatabase::open(
                 &application_data.join("orbe.sqlite3"),
                 &application_data.join("backups"),

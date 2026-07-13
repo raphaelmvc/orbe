@@ -1,14 +1,11 @@
 pub mod key;
 mod migrations;
 
-use std::{
-    fs,
-    path::{Path, PathBuf},
-    sync::Mutex,
-};
+use std::{fs, path::Path, sync::Mutex};
 
 use rusqlite::Connection;
 use thiserror::Error;
+use zeroize::Zeroizing;
 
 use migrations::{apply_pending, back_up_before_migration, LATEST_SCHEMA_VERSION};
 
@@ -70,8 +67,8 @@ fn inspect_schema_version(database_path: &Path, key: &[u8; 32]) -> Result<u32, D
 
 fn open_encrypted_connection(path: &Path, key: &[u8; 32]) -> Result<Connection, DatabaseError> {
     let connection = Connection::open(path)?;
-    let encoded_key = hex::encode(key);
-    connection.pragma_update(None, "key", encoded_key)?;
+    let encoded_key = Zeroizing::new(hex::encode(key));
+    connection.pragma_update(None, "key", encoded_key.as_str())?;
 
     let cipher_version = connection
         .query_row("PRAGMA cipher_version", [], |row| row.get::<_, String>(0))
