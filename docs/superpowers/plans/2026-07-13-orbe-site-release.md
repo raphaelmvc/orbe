@@ -40,6 +40,15 @@
 
 **Step 1: Write failing content and boundary tests**
 
+Initialize `@orbe/site` as a private Vite React/TypeScript workspace, then install its test and routing dependencies:
+
+```powershell
+npm install react react-dom react-router-dom --workspace @orbe/site
+npm install --save-dev vite @vitejs/plugin-react typescript vitest jsdom @testing-library/react @testing-library/jest-dom @playwright/test @axe-core/playwright --workspace @orbe/site
+```
+
+Define package scripts `dev`, `build`, `test`, `test:e2e`, and `typecheck` before invoking them.
+
 Assert site contains Orbe presentation, Windows requirement, features, screenshots region, version, changelog, privacy, terms, contact, and download action. Assert it contains no sign-in, signup, balance, transaction, account, card-management, or report controls.
 
 Expected: FAIL before site exists.
@@ -77,6 +86,19 @@ git commit -m "feat(site): add Orbe presentation and download site"
 - Modify: `apps/desktop/src/features/settings/PreferencesPage.tsx`
 
 **Step 1: Write failing privacy policy tests**
+
+Install official Tauri plugins:
+
+```powershell
+npm run tauri --workspace @orbe/desktop -- add autostart
+npm run tauri --workspace @orbe/desktop -- add notification
+npm run tauri --workspace @orbe/desktop -- add deep-link
+npm run tauri --workspace @orbe/desktop -- add single-instance
+npm run tauri --workspace @orbe/desktop -- add process
+npm run tauri --workspace @orbe/desktop -- add updater
+```
+
+Commit the generated capability permissions in `apps/desktop/src-tauri/capabilities/default.json`; remove generated permissions that Orbe does not call.
 
 Default notification payload may contain generic title `Orbe` and text such as `Você tem um lembrete pendente`, but no amount, bank, description, category, card digits, account, or invoice value. Detailed mode is opt-in. Quiet hours and notification-type preferences suppress delivery without deleting in-app items.
 
