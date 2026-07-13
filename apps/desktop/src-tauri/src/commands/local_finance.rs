@@ -1,5 +1,5 @@
 use rusqlite::{params, Connection, OptionalExtension, TransactionBehavior};
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::Value;
 use thiserror::Error;
 use uuid::Uuid;
@@ -15,8 +15,49 @@ pub struct LocalMutationCommand {
     entity_id: String,
     base_version: u64,
     payload: EntityPayload,
-    deleted_at: Option<String>,
+    deleted_at: RequiredNullable<String>,
     occurred_at: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct RequiredNullable<T>(Option<T>);
+
+impl<T> RequiredNullable<T> {
+    fn as_ref(&self) -> Option<&T> {
+        self.0.as_ref()
+    }
+}
+
+impl<'de, T> Deserialize<'de> for RequiredNullable<T>
+where
+    T: Deserialize<'de>,
+{
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        Option::<T>::deserialize(deserializer).map(Self)
+    }
+}
+
+impl<T> Serialize for RequiredNullable<T>
+where
+    T: Serialize,
+{
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        self.0.serialize(serializer)
+    }
+}
+
+fn deserialize_optional_non_null<'de, D, T>(deserializer: D) -> Result<Option<T>, D::Error>
+where
+    D: Deserializer<'de>,
+    T: Deserialize<'de>,
+{
+    T::deserialize(deserializer).map(Some)
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -26,6 +67,11 @@ pub enum EntityPayload {
         name: String,
         #[serde(rename = "type")]
         account_type: AccountType,
+        #[serde(
+            default,
+            deserialize_with = "deserialize_optional_non_null",
+            skip_serializing_if = "Option::is_none"
+        )]
         institution: Option<String>,
         color: String,
         #[serde(rename = "openingBalance")]
@@ -40,7 +86,7 @@ pub enum EntityPayload {
         name: String,
         kind: TransactionKind,
         #[serde(rename = "parentId")]
-        parent_id: Option<String>,
+        parent_id: RequiredNullable<String>,
         status: CategoryStatus,
         #[serde(rename = "displayOrder")]
         display_order: u64,
@@ -51,7 +97,12 @@ pub enum EntityPayload {
         value: i64,
         #[serde(rename = "categoryId")]
         category_id: String,
-        #[serde(rename = "accountId")]
+        #[serde(
+            rename = "accountId",
+            default,
+            deserialize_with = "deserialize_optional_non_null",
+            skip_serializing_if = "Option::is_none"
+        )]
         account_id: Option<String>,
         #[serde(rename = "dueDate")]
         due_date: String,
@@ -296,7 +347,7 @@ where
                 next_version,
                 payload,
                 command.occurred_at,
-                command.deleted_at,
+                command.deleted_at.as_ref(),
             ],
         )
         .map_err(|_| LocalFinanceError::StorageUnavailable)?;
@@ -317,7 +368,7 @@ where
                 command.base_version,
                 next_version,
                 payload,
-                command.deleted_at,
+                command.deleted_at.as_ref(),
                 command.occurred_at,
             ],
         )
@@ -480,18 +531,33 @@ fn parse_two_digits(value: &str, start: usize) -> Option<u8> {
 #[cfg(test)]
 mod tests {
     use rusqlite::Connection;
-    use serde_json::json;
+    use serde_json::{json, Value};
     use tempfile::tempdir;
 
     use crate::database::EncryptedDatabase;
 
     use super::{
         apply_local_mutation_in_connection, EntityPayload, LocalFinanceError, LocalMutationCommand,
+        RequiredNullable,
     };
 
     const ENTITY_ID: &str = "00000000-0000-4000-8000-000000000004";
     const OPERATION_ID: &str = "00000000-0000-4000-8000-000000000005";
+    const RETRY_OPERATION_ID: &str = "00000000-0000-4000-8000-000000000006";
     const OCCURRED_AT: &str = "2026-07-13T12:00:00.000Z";
+
+    fn raw_command(payload: Value) -> Value {
+        json!({
+            "operationId": OPERATION_ID,
+            "idempotencyKey": "device-A:42",
+            "entityType": payload["entityType"],
+            "entityId": ENTITY_ID,
+            "baseVersion": 0,
+            "payload": payload,
+            "deletedAt": null,
+            "occurredAt": OCCURRED_AT
+        })
+    }
 
     fn command(idempotency_key: &str) -> LocalMutationCommand {
         LocalMutationCommand {
@@ -511,7 +577,7 @@ mod tests {
                 "displayOrder": 0
             }))
             .expect("valid account payload"),
-            deleted_at: None,
+            deleted_at: RequiredNullable(None),
             occurred_at: OCCURRED_AT.to_owned(),
         }
     }
@@ -548,14 +614,179 @@ mod tests {
         let first =
             apply_local_mutation_in_connection(&mut connection, command("device-A:42"), || Ok(()))
                 .expect("first mutation should succeed");
-        let retried =
-            apply_local_mutation_in_connection(&mut connection, command("device-A:42"), || Ok(()))
-                .expect("retry should return its original receipt");
+        let mut retry = command("device-A:42");
+        retry.operation_id = RETRY_OPERATION_ID.to_owned();
+        let retried = apply_local_mutation_in_connection(&mut connection, retry, || Ok(()))
+            .expect("retry should return its original receipt");
 
         assert_eq!(first, retried);
+        assert_eq!(retried.operation_id, OPERATION_ID);
         assert_eq!(first.version, 1);
         assert_eq!(row_count(&connection, "entities"), 1);
         assert_eq!(row_count(&connection, "outbox"), 1);
+    }
+
+    #[test]
+    fn native_presence_and_nullability_match_the_zod_contracts() {
+        let account_without_institution = raw_command(json!({
+            "entityType": "account",
+            "name": "Conta principal",
+            "type": "checking",
+            "color": "#123456",
+            "openingBalance": 10_000,
+            "openingBalanceDate": "2026-07-13",
+            "status": "active",
+            "displayOrder": 0
+        }));
+        assert!(serde_json::from_value::<LocalMutationCommand>(
+            account_without_institution.clone()
+        )
+        .is_ok());
+        let mut account_with_institution = account_without_institution.clone();
+        account_with_institution["payload"]["institution"] = json!("Banco Orbe");
+        assert!(serde_json::from_value::<LocalMutationCommand>(account_with_institution).is_ok());
+        let mut account_with_null_institution = account_without_institution;
+        account_with_null_institution["payload"]["institution"] = Value::Null;
+        assert!(
+            serde_json::from_value::<LocalMutationCommand>(account_with_null_institution).is_err()
+        );
+
+        let category_with_null_parent = raw_command(json!({
+            "entityType": "category",
+            "name": "Alimentação",
+            "kind": "expense",
+            "parentId": null,
+            "status": "active",
+            "displayOrder": 0
+        }));
+        assert!(
+            serde_json::from_value::<LocalMutationCommand>(category_with_null_parent.clone())
+                .is_ok()
+        );
+        let mut category_with_parent = category_with_null_parent.clone();
+        category_with_parent["payload"]["parentId"] = json!("00000000-0000-4000-8000-00000000000a");
+        assert!(serde_json::from_value::<LocalMutationCommand>(category_with_parent).is_ok());
+        let mut category_without_parent = category_with_null_parent;
+        category_without_parent["payload"]
+            .as_object_mut()
+            .expect("category payload")
+            .remove("parentId");
+        assert!(serde_json::from_value::<LocalMutationCommand>(category_without_parent).is_err());
+
+        let transaction_without_account = raw_command(json!({
+            "entityType": "transaction",
+            "kind": "expense",
+            "description": "Compra pendente",
+            "value": 5_000,
+            "categoryId": "00000000-0000-4000-8000-000000000007",
+            "dueDate": "2026-07-20",
+            "state": "pending"
+        }));
+        assert!(serde_json::from_value::<LocalMutationCommand>(
+            transaction_without_account.clone()
+        )
+        .is_ok());
+        let mut transaction_with_account = transaction_without_account.clone();
+        transaction_with_account["payload"]["accountId"] =
+            json!("00000000-0000-4000-8000-00000000000b");
+        assert!(serde_json::from_value::<LocalMutationCommand>(transaction_with_account).is_ok());
+        let mut transaction_with_null_account = transaction_without_account;
+        transaction_with_null_account["payload"]["accountId"] = Value::Null;
+        assert!(
+            serde_json::from_value::<LocalMutationCommand>(transaction_with_null_account).is_err()
+        );
+
+        let mut command_without_deleted_at = account_without_institution_command_json();
+        command_without_deleted_at
+            .as_object_mut()
+            .expect("command object")
+            .remove("deletedAt");
+        assert!(
+            serde_json::from_value::<LocalMutationCommand>(command_without_deleted_at).is_err()
+        );
+        assert!(serde_json::from_value::<LocalMutationCommand>(
+            account_without_institution_command_json()
+        )
+        .is_ok());
+        let mut command_with_deleted_at = account_without_institution_command_json();
+        command_with_deleted_at["deletedAt"] = json!("2026-07-13T13:00:00.000Z");
+        assert!(serde_json::from_value::<LocalMutationCommand>(command_with_deleted_at).is_ok());
+    }
+
+    #[test]
+    fn persisted_payload_omits_optional_absent_fields_and_keeps_required_nulls() {
+        let (_directory, mut connection) = database_connection();
+
+        let account = serde_json::from_value(account_without_institution_command_json())
+            .expect("account command");
+        apply_local_mutation_in_connection(&mut connection, account, || Ok(()))
+            .expect("account mutation");
+
+        let category = serde_json::from_value(raw_command(json!({
+            "entityType": "category",
+            "name": "Alimentação",
+            "kind": "expense",
+            "parentId": null,
+            "status": "active",
+            "displayOrder": 0
+        })))
+        .expect("category command");
+        let mut category = category;
+        category.operation_id = "00000000-0000-4000-8000-000000000008".to_owned();
+        category.idempotency_key = "device-A:43".to_owned();
+        category.entity_id = "00000000-0000-4000-8000-000000000009".to_owned();
+        apply_local_mutation_in_connection(&mut connection, category, || Ok(()))
+            .expect("category mutation");
+
+        let transaction = serde_json::from_value(raw_command(json!({
+            "entityType": "transaction",
+            "kind": "expense",
+            "description": "Compra pendente",
+            "value": 5_000,
+            "categoryId": "00000000-0000-4000-8000-000000000007",
+            "dueDate": "2026-07-20",
+            "state": "pending"
+        })))
+        .expect("transaction command");
+        let mut transaction = transaction;
+        transaction.operation_id = "00000000-0000-4000-8000-00000000000a".to_owned();
+        transaction.idempotency_key = "device-A:44".to_owned();
+        transaction.entity_id = "00000000-0000-4000-8000-00000000000b".to_owned();
+        apply_local_mutation_in_connection(&mut connection, transaction, || Ok(()))
+            .expect("transaction mutation");
+
+        let account_payload = persisted_payload(&connection, ENTITY_ID);
+        assert!(account_payload.get("institution").is_none());
+        let category_payload =
+            persisted_payload(&connection, "00000000-0000-4000-8000-000000000009");
+        assert_eq!(category_payload.get("parentId"), Some(&Value::Null));
+        let transaction_payload =
+            persisted_payload(&connection, "00000000-0000-4000-8000-00000000000b");
+        assert!(transaction_payload.get("accountId").is_none());
+    }
+
+    fn account_without_institution_command_json() -> Value {
+        raw_command(json!({
+            "entityType": "account",
+            "name": "Conta principal",
+            "type": "checking",
+            "color": "#123456",
+            "openingBalance": 10_000,
+            "openingBalanceDate": "2026-07-13",
+            "status": "active",
+            "displayOrder": 0
+        }))
+    }
+
+    fn persisted_payload(connection: &Connection, entity_id: &str) -> Value {
+        let payload: String = connection
+            .query_row(
+                "SELECT payload FROM entities WHERE id = ?1",
+                [entity_id],
+                |row| row.get(0),
+            )
+            .expect("persisted entity payload");
+        serde_json::from_str(&payload).expect("payload JSON")
     }
 
     fn row_count(connection: &Connection, table: &str) -> i64 {

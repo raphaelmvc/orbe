@@ -95,3 +95,48 @@ pub enum DatabaseError {
     #[error("system clock is unavailable")]
     Clock,
 }
+
+#[cfg(test)]
+mod tests {
+    use std::fs;
+
+    use tempfile::tempdir;
+
+    use super::{open_encrypted_connection, EncryptedDatabase};
+
+    #[test]
+    fn backs_up_the_closed_encrypted_file_before_applying_a_pending_migration() {
+        let directory = tempdir().expect("temporary database directory");
+        let database_path = directory.path().join("orbe.sqlite3");
+        let backups_path = directory.path().join("backups");
+        let key = [0x44; 32];
+
+        let legacy = open_encrypted_connection(&database_path, &key).expect("legacy database");
+        legacy
+            .execute("CREATE TABLE legacy_marker (value TEXT NOT NULL)", [])
+            .expect("legacy schema");
+        legacy
+            .execute("INSERT INTO legacy_marker (value) VALUES ('before')", [])
+            .expect("legacy value");
+        drop(legacy);
+        let bytes_before_migration = fs::read(&database_path).expect("legacy database bytes");
+
+        let migrated = EncryptedDatabase::open(&database_path, &backups_path, &key)
+            .expect("migrated database");
+        assert!(migrated
+            .connection()
+            .query_row("SELECT COUNT(*) FROM entities", [], |row| row
+                .get::<_, i64>(0))
+            .is_ok());
+
+        let backups = fs::read_dir(&backups_path)
+            .expect("backup directory")
+            .collect::<Result<Vec<_>, _>>()
+            .expect("backup entries");
+        assert_eq!(backups.len(), 1);
+        assert_eq!(
+            fs::read(backups[0].path()).expect("pre-migration backup bytes"),
+            bytes_before_migration
+        );
+    }
+}
