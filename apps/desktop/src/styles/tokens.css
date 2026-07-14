@@ -17,11 +17,12 @@
   --color-border-strong: #c5ced9;
   --color-accent: #315fdb;
   --color-accent-soft: #e7edff;
+  --color-on-accent: #ffffff;
   --color-focus: #174abf;
-  --color-income: #1c8a5b;
+  --color-income: #157a50;
   --color-expense: #c23b2e;
-  --color-warning: #b7791f;
-  --color-success: #1f9d6b;
+  --color-warning: #96610f;
+  --color-success: #0f8057;
   --shadow-control: 0 0.25rem 0.75rem rgb(29 45 69 / 8%);
   --shadow-orb: 0 0.75rem 2rem rgb(49 95 219 / 28%);
   --shadow-elevated: 0 1.25rem 2.5rem rgb(29 45 69 / 16%);
@@ -63,6 +64,7 @@ body {
     --color-border-strong: #405168;
     --color-accent: #84a7ff;
     --color-accent-soft: #1b315f;
+    --color-on-accent: #0e151e;
     --color-focus: #a9c0ff;
     --color-income: #4ade91;
     --color-expense: #ff8a75;

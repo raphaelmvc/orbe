@@ -60,9 +60,11 @@ test('exposes a navigation link for every route', () => {
 test('shows the footer avatar, user name, sync state, and expansion control', () => {
   renderShell(baseSession, 'syncing');
 
-  expect(screen.getByRole('button', { name: /Ana Beatriz/ })).toBeInTheDocument();
+  const trigger = screen.getByRole('button', { name: /Ana Beatriz/ });
+  expect(trigger).toBeInTheDocument();
   expect(screen.getByText('Ana Beatriz')).toBeInTheDocument();
   expect(screen.getByText('Sincronizando')).toBeInTheDocument();
+  expect(within(trigger).getByTestId('user-menu-expand-icon')).toBeInTheDocument();
 });
 
 describe.each([

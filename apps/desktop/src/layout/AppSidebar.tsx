@@ -7,6 +7,7 @@ import {
   Check,
   ChevronsLeft,
   ChevronsRight,
+  ChevronsUpDown,
   CloudOff,
   Plus,
   RefreshCw,
@@ -34,6 +35,10 @@ const SYNC_ICONS: Record<SyncVisualState, IconComponent> = {
   conflict: AlertTriangle,
   error: XCircle,
 };
+
+function hiddenWhenCollapsed(className: string, collapsed: boolean): string {
+  return collapsed ? `${className} ${styles.visuallyHidden}` : className;
+}
 
 function getInitials(displayName: string): string {
   const initials = displayName
@@ -86,7 +91,7 @@ function NavItem({ item, collapsed }: NavItemProps) {
         }
       >
         <Icon aria-hidden="true" size={18} />
-        <span className={styles.navLabel}>{item.label}</span>
+        <span className={hiddenWhenCollapsed(styles.navLabel, collapsed)}>{item.label}</span>
       </NavLink>
     </CollapsibleTooltip>
   );
@@ -127,14 +132,16 @@ export function AppSidebar({ session, syncState }: AppSidebarProps) {
         <CollapsibleTooltip label="Adicionar" collapsed={collapsed}>
           <button type="button" className={styles.addButton}>
             <Plus aria-hidden="true" size={18} />
-            <span className={styles.navLabel}>Adicionar</span>
+            <span className={hiddenWhenCollapsed(styles.navLabel, collapsed)}>Adicionar</span>
           </button>
         </CollapsibleTooltip>
 
         <nav className={styles.navGroups} aria-label="Navegação principal">
           {NAV_GROUPS.map((group) => (
             <div className={styles.navGroup} key={group.label}>
-              <h2 className={styles.navGroupLabel}>{group.label}</h2>
+              <h2 className={hiddenWhenCollapsed(styles.navGroupLabel, collapsed)}>
+                {group.label}
+              </h2>
               <ul className={styles.navList}>
                 {group.items.map((item) => (
                   <li key={item.path}>
@@ -152,12 +159,22 @@ export function AppSidebar({ session, syncState }: AppSidebarProps) {
               {getInitials(session.displayName)}
             </span>
             <span className={styles.footerText}>
-              <span className={styles.userName}>{session.displayName}</span>
+              <span className={hiddenWhenCollapsed(styles.userName, collapsed)}>
+                {session.displayName}
+              </span>
               <span className={styles.syncState}>
                 <SyncIcon aria-hidden="true" size={13} />
-                {SYNC_LABELS[syncState]}
+                <span className={collapsed ? styles.visuallyHidden : undefined}>
+                  {SYNC_LABELS[syncState]}
+                </span>
               </span>
             </span>
+            <ChevronsUpDown
+              aria-hidden="true"
+              size={14}
+              className={hiddenWhenCollapsed(styles.expandIcon, collapsed)}
+              data-testid="user-menu-expand-icon"
+            />
           </UserMenu>
         </div>
       </aside>
